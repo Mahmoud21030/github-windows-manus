@@ -1,0 +1,19 @@
+name: VM Maintenance
+
+on:
+  workflow_dispatch:
+
+jobs:
+  maintain-vm:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Run Maintenance Script
+      run: |
+        echo "This is a placeholder for VM maintenance tasks."
+        echo "Implement tasks like updating the base image, cleaning old checkpoints, etc., here."
+        # Example: ./scripts/update_base_image
+        # Example: ./scripts/prune_checkpoints

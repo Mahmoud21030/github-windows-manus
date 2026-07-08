@@ -1,0 +1,80 @@
+name: Persistent Windows VM Runtime
+
+on:
+  workflow_dispatch:
+
+jobs:
+  run-vm:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Bootstrap VM Environment
+      run: ./scripts/bootstrap
+
+    - name: Run VM and Checkpoint Periodically
+      id: vm_runtime
+      run: |
+        #!/usr/bin/env bash
+        set -euo pipefail
+
+        QMP_SOCKET_FILE="$(pwd)/qmp_socket.txt"
+        QMP_SOCKET=$(cat "$QMP_SOCKET_FILE")
+        CHECKPOINT_SCRIPT="$(pwd)/scripts/checkpoint"
+        SHUTDOWN_SCRIPT="$(pwd)/scripts/shutdown"
+
+        echo "VM is running. You can connect via RDP."
+        echo "To gracefully shut down, trigger the 'Shutdown VM' workflow dispatch."
+
+        # Loop for periodic checkpoints (every 2 hours)
+        start_time=$(date +%s)
+        while true; do
+            current_time=$(date +%s)
+            elapsed_time=$((current_time - start_time))
+
+            if (( elapsed_time >= 7200 )); then # 2 hours = 7200 seconds
+                echo "Triggering periodic checkpoint..."
+                "$CHECKPOINT_SCRIPT"
+                start_time=$(date +%s) # Reset timer
+            fi
+            sleep 60 # Check every minute
+        done
+      # This step will run indefinitely until the job is cancelled or VM is shut down
+      # The post-job steps will handle cleanup and final checkpoint
+
+    - name: Final Checkpoint on Graceful Shutdown
+      if: success() || cancelled()
+      run: |
+        #!/usr/bin/env bash
+        set -euo pipefail
+
+        CHECKPOINT_SCRIPT="$(pwd)/scripts/checkpoint"
+        SHUTDOWN_SCRIPT="$(pwd)/scripts/shutdown"
+        CLEANUP_SCRIPT="$(pwd)/scripts/cleanup"
+
+        echo "Performing final checkpoint..."
+        "$CHECKPOINT_SCRIPT"
+
+        echo "Shutting down VM..."
+        "$SHUTDOWN_SCRIPT"
+
+        echo "Cleaning up VM environment..."
+        "$CLEANUP_SCRIPT"
+
+    - name: Upload Checkpoint on Unexpected Exit
+      if: failure()
+      run: |
+        #!/usr/bin/env bash
+        set -euo pipefail
+
+        CHECKPOINT_SCRIPT="$(pwd)/scripts/checkpoint"
+        CLEANUP_SCRIPT="$(pwd)/scripts/cleanup"
+
+        echo "Workflow failed unexpectedly. Attempting to upload latest checkpoint..."
+        # This checkpoint might not be perfect but it's better than nothing
+        "$CHECKPOINT_SCRIPT" || true # Continue even if checkpoint fails
+
+        echo "Cleaning up VM environment..."
+        "$CLEANUP_SCRIPT"
