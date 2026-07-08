@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+# QEMU scripts
+QEMU_SHUTDOWN="$(dirname "$0")"/../qemu/shutdown
+
+# QMP socket file
+QMP_SOCKET_FILE="$(dirname "$0")"/../qmp_socket.txt
+
+# VM image directory
+VM_IMAGES_DIR="$(dirname "$0")"/../vm_images
+
+if [ -f "$QMP_SOCKET_FILE" ]; then
+    QMP_SOCKET=$(cat "$QMP_SOCKET_FILE")
+    echo "Attempting to gracefully shut down QEMU VM using QMP socket: $QMP_SOCKET"
+    "$QEMU_SHUTDOWN" "$QMP_SOCKET" || true # Continue even if shutdown fails
+    rm -f "$QMP_SOCKET_FILE"
+    echo "Removed QMP socket file: $QMP_SOCKET_FILE"
+else
+    echo "No QMP socket file found. Assuming VM is not running or was already shut down."
+fi
+
+if [ -d "$VM_IMAGES_DIR" ]; then
+    echo "Removing VM images directory: $VM_IMAGES_DIR"
+    rm -rf "$VM_IMAGES_DIR"
+else
+    echo "VM images directory not found. Nothing to clean up."
+fi
+
+echo "Cleanup complete."
