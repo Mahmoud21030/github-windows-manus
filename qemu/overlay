@@ -1,0 +1,76 @@
+#!/usr/bin/env python3
+
+import subprocess
+import sys
+import os
+
+def create_overlay(base_image, overlay_image):
+    print(f"Creating overlay {overlay_image} from base {base_image}...")
+    try:
+        subprocess.run(["qemu-img", "create", "-f", "qcow2", "-F", "qcow2", "-b", base_image, overlay_image], check=True)
+        print(f"Overlay {overlay_image} created successfully.")
+    except subprocess.CalledProcessError as e:
+        print(f"Failed to create overlay: {e}")
+        sys.exit(1)
+
+def compact_overlay(overlay_image):
+    print(f"Compacting overlay {overlay_image}...")
+    try:
+        subprocess.run(["qemu-img", "compact", overlay_image], check=True)
+        print(f"Overlay {overlay_image} compacted successfully.")
+    except subprocess.CalledProcessError as e:
+        print(f"Failed to compact overlay: {e}")
+        sys.exit(1)
+
+def compress_overlay(overlay_image, compressed_output):
+    print(f"Compressing overlay {overlay_image} to {compressed_output} using zstd...")
+    try:
+        subprocess.run(["zstd", "-f", overlay_image, "-o", compressed_output], check=True)
+        print(f"Overlay {overlay_image} compressed to {compressed_output} successfully.")
+    except subprocess.CalledProcessError as e:
+        print(f"Failed to compress overlay: {e}")
+        sys.exit(1)
+
+def decompress_overlay(compressed_input, decompressed_output):
+    print(f"Decompressing {compressed_input} to {decompressed_output} using zstd...")
+    try:
+        subprocess.run(["zstd", "-d", "-f", compressed_input, "-o", decompressed_output], check=True)
+        print(f"Overlay {compressed_input} decompressed to {decompressed_output} successfully.")
+    except subprocess.CalledProcessError as e:
+        print(f"Failed to decompress overlay: {e}")
+        sys.exit(1)
+
+if __name__ == "__main__":
+    if len(sys.argv) < 2:
+        print("Usage: ./qemu/overlay <command> [args...]")
+        print("Commands: create <base_image> <overlay_image>")
+        print("          compact <overlay_image>")
+        print("          compress <overlay_image> <compressed_output>")
+        print("          decompress <compressed_input> <decompressed_output>")
+        sys.exit(1)
+
+    command = sys.argv[1]
+
+    if command == "create":
+        if len(sys.argv) != 4:
+            print("Usage: ./qemu/overlay create <base_image> <overlay_image>")
+            sys.exit(1)
+        create_overlay(sys.argv[2], sys.argv[3])
+    elif command == "compact":
+        if len(sys.argv) != 3:
+            print("Usage: ./qemu/overlay compact <overlay_image>")
+            sys.exit(1)
+        compact_overlay(sys.argv[2])
+    elif command == "compress":
+        if len(sys.argv) != 4:
+            print("Usage: ./qemu/overlay compress <overlay_image> <compressed_output>")
+            sys.exit(1)
+        compress_overlay(sys.argv[2], sys.argv[3])
+    elif command == "decompress":
+        if len(sys.argv) != 4:
+            print("Usage: ./qemu/overlay decompress <compressed_input> <decompressed_output>")
+            sys.exit(1)
+        decompress_overlay(sys.argv[2], sys.argv[3])
+    else:
+        print(f"Unknown command: {command}")
+        sys.exit(1)

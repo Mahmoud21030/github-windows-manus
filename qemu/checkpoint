@@ -1,0 +1,11 @@
+#!/usr/bin/env python3
+import sys, subprocess, os
+
+def backup(overlay, output):
+    subprocess.run(["qemu-img","convert","-O","qcow2",overlay,output],check=True)
+    print("Disk checkpoint created:", output)
+
+if __name__=="__main__":
+    if len(sys.argv)!=3:
+        print("Usage: checkpoint <overlay> <output>"); sys.exit(1)
+    backup(sys.argv[1],sys.argv[2])

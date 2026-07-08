@@ -1,0 +1,72 @@
+#!/usr/bin/env python3
+
+import subprocess
+import json
+import os
+import sys
+import time
+
+def get_vm_config():
+    config_path = os.path.join(os.path.dirname(__file__), '..', 'config', 'vm.json')
+    with open(config_path, 'r') as f:
+        return json.load(f)
+
+def get_qemu_command(vm_config, base_image, overlay_image, qmp_path):
+    mem = vm_config['memory']
+    cpu = vm_config['cpu']
+    disk_if = vm_config['disk_interface']
+    net_if = vm_config['network_interface']
+    uefi = vm_config['uefi_support']
+    rdp_port = vm_config['rdp_port_forwarding']
+
+    cmd = [
+        'qemu-system-x86_64',
+        '-enable-kvm',
+        '-m', mem,
+        '-smp', str(cpu),
+        '-cpu', 'host',
+        '-drive', f'file={overlay_image},if={disk_if},format=qcow2',
+        '-net', f'nic,model={net_if}',
+        '-net', f'user,hostfwd=tcp::{rdp_port}-:3389',
+        '-qmp', f'unix:{qmp_path},server,nowait',
+        '-daemonize',
+        '-vnc', ':0',
+        '-monitor', 'none',
+        '-serial', 'none',
+        '-parallel', 'none',
+        '-display', 'none'
+    ]
+
+    if uefi:
+        cmd.extend(['-bios', '/usr/share/qemu/OVMF.fd'])
+
+    return cmd
+
+if __name__ == "__main__":
+    if len(sys.argv) != 4:
+        print("Usage: ./qemu/boot <base_image_path> <overlay_image_path> <qmp_socket_path>")
+        sys.exit(1)
+
+    base_image = sys.argv[1]
+    overlay_image = sys.argv[2]
+    qmp_path = sys.argv[3]
+
+    vm_config = get_vm_config()
+    qemu_cmd = get_qemu_command(vm_config, base_image, overlay_image, qmp_path)
+
+    print(f"Booting QEMU with command: {" ".join(qemu_cmd)}")
+    try:
+        subprocess.run(qemu_cmd, check=True)
+        print("QEMU VM started in daemon mode.")
+        # Wait a bit for the QMP socket to be created
+        time.sleep(5)
+        if not os.path.exists(qmp_path):
+            print(f"Error: QMP socket not found at {qmp_path}")
+            sys.exit(1)
+        print(f"QMP socket available at {qmp_path}")
+    except subprocess.CalledProcessError as e:
+        print(f"Failed to boot QEMU: {e}")
+        sys.exit(1)
+    except Exception as e:
+        print(f"An unexpected error occurred: {e}")
+        sys.exit(1)
