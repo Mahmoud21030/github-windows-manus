@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+# QEMU scripts
+QEMU_SHUTDOWN_UTIL="$(dirname "$0")"/../qemu/shutdown
+
+# QMP socket file
+QMP_SOCKET_FILE="$(dirname "$0")"/../qmp_socket.txt"
+
+if [ ! -f "$QMP_SOCKET_FILE" ]; then
+    echo "Error: QMP socket file not found at $QMP_SOCKET_FILE. Is the VM running?"
+    exit 1
+fi
+QMP_SOCKET=$(cat "$QMP_SOCKET_FILE")
+
+echo "Attempting to gracefully shut down QEMU VM using QMP socket: $QMP_SOCKET"
+"$QEMU_SHUTDOWN_UTIL" "$QMP_SOCKET"
+
+echo "VM shutdown complete."

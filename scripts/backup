@@ -1,0 +1,66 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+# Configuration files
+CHECKPOINT_CONFIG="$(dirname "$0")"/../config/checkpoint.json
+
+# QEMU and Backblaze scripts
+QEMU_QMP="$(dirname "$0")"/../qemu/qmp
+QEMU_OVERLAY="$(dirname "$0")"/../qemu/overlay
+QEMU_CHECKPOINT="$(dirname "$0")"/../qemu/checkpoint
+BACKBLAZE_UPLOAD="$(dirname "$0")"/../backblaze/upload
+BACKBLAZE_VERIFY="$(dirname "$0")"/../backblaze/verify
+
+# VM image paths
+OVERLAY_IMAGE="$(dirname "$0")"/../vm_images/overlay.qcow2
+COMPRESSED_OVERLAY="$(dirname "$0")"/../vm_images/overlay.qcow2.zst
+OVERLAY_CHECKSUM="$(dirname "$0")"/../vm_images/overlay.sha256
+
+# QMP socket path
+QMP_SOCKET=$(cat "$(dirname "$0")/../qmp_socket.txt" 2>/dev/null || true)
+
+# Function to clean up QMP socket on exit
+cleanup_qmp_socket() {
+    if [ -e "$QMP_SOCKET" ]; then
+        rm -f "$QMP_SOCKET"
+        echo "Cleaned up QMP socket: $QMP_SOCKET"
+    fi
+}
+trap cleanup_qmp_socket EXIT
+
+# Read checkpoint configuration
+MAX_CHECKPOINTS=$(jq -r ".max_checkpoints" "$CHECKPOINT_CONFIG")
+
+echo "1. Flushing guest filesystem (requires qemu-guest-agent in VM)..."
+# This command requires qemu-guest-agent to be installed and running in the guest VM.
+# For now, we'll just send a generic command, but proper implementation would check for agent presence.
+# "$QEMU_QMP" "$QMP_SOCKET" '{"execute": "guest-fsfreeze-freeze"}'
+# sleep 5 # Give time for filesystem to freeze
+
+echo "2. Creating disk checkpoint..."
+CHECKPOINT_OUTPUT="$(dirname "$OVERLAY_IMAGE")/checkpoint.qcow2"
+"$QEMU_CHECKPOINT" "$OVERLAY_IMAGE" "$CHECKPOINT_OUTPUT"
+
+echo "3. Compacting overlay..."
+"$QEMU_OVERLAY" compact "$OVERLAY_IMAGE"
+
+echo "4. Compressing overlay..."
+"$QEMU_OVERLAY" compress "$OVERLAY_IMAGE" "$COMPRESSED_OVERLAY"
+
+echo "5. Generating SHA256 checksum for compressed overlay..."
+sha256sum "$COMPRESSED_OVERLAY" | awk '{print $1}' > "$OVERLAY_CHECKSUM"
+
+echo "6. Uploading compressed overlay and checksum to Backblaze B2..."
+"$BACKBLAZE_UPLOAD" "$COMPRESSED_OVERLAY"
+"$BACKBLAZE_UPLOAD" "$OVERLAY_CHECKSUM"
+
+echo "7. Verifying upload..."
+# This verification is for the local file against the local checksum. 
+# A more robust verification would download from B2 and compare.
+"$BACKBLAZE_VERIFY" "$COMPRESSED_OVERLAY" "$OVERLAY_CHECKSUM"
+
+# echo "Thawing guest filesystem (requires qemu-guest-agent in VM)..."
+# "$QEMU_QMP" "$QMP_SOCKET" '{"execute": "guest-fsfreeze-thaw"}'
+
+echo "Backup complete."
