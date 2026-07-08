@@ -1,0 +1,6 @@
+{
+  "bucket_name": "${B2_BUCKET}",
+  "endpoint": "${B2_ENDPOINT}",
+  "key_id": "${B2_KEY_ID}",
+  "application_key": "${B2_APPLICATION_KEY}"
+}

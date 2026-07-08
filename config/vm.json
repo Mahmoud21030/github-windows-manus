@@ -1,0 +1,8 @@
+{
+  "memory": "4G",
+  "cpu": 2,
+  "disk_interface": "virtio",
+  "network_interface": "virtio",
+  "uefi_support": true,
+  "rdp_port_forwarding": 3389
+}
