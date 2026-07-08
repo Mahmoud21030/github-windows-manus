@@ -1,0 +1,45 @@
+#!/usr/bin/env python3
+
+import hashlib
+import sys
+import os
+
+def calculate_sha256(file_path):
+    sha256_hash = hashlib.sha256()
+    with open(file_path, "rb") as f:
+        for byte_block in iter(lambda: f.read(4096), b""):
+            sha256_hash.update(byte_block)
+    return sha256_hash.hexdigest()
+
+if __name__ == "__main__":
+    if len(sys.argv) != 3:
+        print("Usage: ./backblaze/verify <file_path> <checksum_file_path>")
+        sys.exit(1)
+
+    file_path = sys.argv[1]
+    checksum_file_path = sys.argv[2]
+
+    if not os.path.exists(file_path):
+        print(f"Error: File not found at {file_path}")
+        sys.exit(1)
+    if not os.path.exists(checksum_file_path):
+        print(f"Error: Checksum file not found at {checksum_file_path}")
+        sys.exit(1)
+
+    try:
+        with open(checksum_file_path, 'r') as f:
+            expected_checksum = f.read().strip().split(' ')[0] # Assuming checksum file format is 'checksum filename'
+
+        calculated_checksum = calculate_sha256(file_path)
+
+        if calculated_checksum == expected_checksum:
+            print(f"Checksum verification successful for {file_path}.")
+            sys.exit(0)
+        else:
+            print(f"Checksum verification failed for {file_path}.")
+            print(f"Expected: {expected_checksum}")
+            print(f"Calculated: {calculated_checksum}")
+            sys.exit(1)
+    except Exception as e:
+        print(f"Verification failed: {e}")
+        sys.exit(1)
